@@ -55,9 +55,12 @@ class GroqClient:
             )
         except groq.BadRequestError as exc:
             failed_generation = _failed_generation(exc.body)
-            if failed_generation is not None:
+            if failed_generation:
                 # Hand the non-conforming JSON to the caller's validation and repair step.
                 return failed_generation
+            if failed_generation is not None:
+                # Nothing to repair: the model produced no output, so let the next provider try.
+                raise LLMProviderError("Groq returned no usable output.") from exc
             raise LLMConfigurationError(
                 "The AI service rejected the request. Check GROQ_MODEL supports structured output."
             ) from exc
@@ -105,4 +108,4 @@ def _failed_generation(body: object) -> str | None:
     if not isinstance(error, dict) or error.get("code") != JSON_VALIDATE_FAILED:
         return None
     generation = error.get("failed_generation")
-    return generation if isinstance(generation, str) and generation else None
+    return generation if isinstance(generation, str) else ""

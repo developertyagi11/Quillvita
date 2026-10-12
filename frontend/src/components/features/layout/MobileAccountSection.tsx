@@ -1,7 +1,8 @@
 "use client";
 
-import { History, LogIn, LogOut, UserRound } from "lucide-react";
+import { History, LogOut, UserRound } from "lucide-react";
 
+import { MobileSignInLinks } from "@/components/features/layout/SignInLinks";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAccount } from "@/hooks/useAccount";
@@ -17,23 +18,7 @@ export function MobileAccountSection({ onNavigate }: MobileAccountSectionProps):
 
   if (state.status === "loading") return <Skeleton className="h-11 w-full" />;
 
-  if (state.status === "signed-out") {
-    return (
-      <>
-        <ButtonLink href={ROUTES.signIn} icon={LogIn} onClick={onNavigate} className="h-11 w-full">
-          Sign in
-        </ButtonLink>
-        <ButtonLink
-          href={ROUTES.signUp}
-          variant="tertiary"
-          onClick={onNavigate}
-          className="h-11 w-full"
-        >
-          Create a free account
-        </ButtonLink>
-      </>
-    );
-  }
+  if (state.status === "signed-out") return <MobileSignInLinks onNavigate={onNavigate} />;
 
   return (
     <>

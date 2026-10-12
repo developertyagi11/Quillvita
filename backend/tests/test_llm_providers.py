@@ -142,3 +142,10 @@ async def test_groq_schema_failures_are_returned_for_repair() -> None:
     body = {"error": {"code": "json_validate_failed", "failed_generation": failed}}
     transport = httpx.MockTransport(lambda _: httpx.Response(400, json=body))
     assert await groq_client(transport).generate_json("s", "u", schema=SCHEMA) == failed
+
+
+async def test_groq_empty_schema_failure_falls_through_to_the_next_provider() -> None:
+    body = {"error": {"code": "json_validate_failed", "failed_generation": ""}}
+    transport = httpx.MockTransport(lambda _: httpx.Response(400, json=body))
+    with pytest.raises(LLMProviderError):
+        await groq_client(transport).generate_json("s", "u", schema=SCHEMA)

@@ -11,7 +11,7 @@ from app.errors import (
     LLMUnavailableError,
 )
 from app.services.llm.base import JsonSchema
-from app.services.llm.fallback import BUSY_MESSAGE, FallbackClient, Provider
+from app.services.llm.fallback import BUSY_MESSAGE, QUOTA_MESSAGE, FallbackClient, Provider
 from app.services.llm.retry import RetryingClient
 from tests.fakes import FakeLLM
 
@@ -116,6 +116,18 @@ async def test_both_providers_failing_returns_busy_error() -> None:
     with pytest.raises(LLMUnavailableError) as caught:
         await chain.generate_json("s", "u", schema={})
     assert caught.value.message == BUSY_MESSAGE
+
+
+async def test_every_provider_out_of_quota_says_so() -> None:
+    chain = FallbackClient(
+        [
+            Provider("gemini", "a", FakeLLM([LLMRateLimitError("day", quota_exhausted=True)])),
+            Provider("groq", "b", FakeLLM([LLMRateLimitError("day", quota_exhausted=True)])),
+        ]
+    )
+    with pytest.raises(LLMUnavailableError) as caught:
+        await chain.generate_json("s", "u", schema={})
+    assert caught.value.message == QUOTA_MESSAGE
 
 
 async def test_non_transient_errors_do_not_fall_back() -> None:

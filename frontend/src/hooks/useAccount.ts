@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useHydrated } from "@/hooks/useHydrated";
 import { useToast } from "@/hooks/useToast";
 import { authClient } from "@/lib/auth/client";
+import { setSessionHint } from "@/lib/auth/session-hint";
 import { clearAccessToken } from "@/lib/auth/token";
 import { ROUTES } from "@/lib/routes";
 
@@ -32,6 +33,7 @@ export function useAccount(): Account {
     try {
       await authClient.signOut();
       clearAccessToken();
+      setSessionHint(false);
       router.replace(ROUTES.home);
       router.refresh();
     } catch {
@@ -45,6 +47,11 @@ export function useAccount(): Account {
   if (!hydrated || isPending) state = { status: "loading" };
   else if (session) state = { status: "signed-in", email: session.user.email };
   else state = { status: "signed-out" };
+
+  const { status } = state;
+  useEffect(() => {
+    if (status !== "loading") setSessionHint(status === "signed-in");
+  }, [status]);
 
   return { state, isSigningOut, signOut };
 }

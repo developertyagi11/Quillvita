@@ -48,13 +48,19 @@ class LLMClient(Protocol):
     async def generate_json(self, system: str, user: str, *, schema: JsonSchema) -> str: ...
 ```
 
-| Role    | Provider                            | SDK            | Model env var | Configured model      |
-| ------- | ----------------------------------- | -------------- | ------------- | --------------------- |
-| Primary | Google Gemini (AI Studio free tier) | `google-genai` | `LLM_MODEL`   | `gemini-3.8-flash`    |
-| Backup  | Groq (free tier)                    | `groq`         | `GROQ_MODEL`  | `openai/gpt-oss-120b` |
+| Role        | Provider                            | SDK            | Model env var           | Configured model        |
+| ----------- | ----------------------------------- | -------------- | ----------------------- | ----------------------- |
+| Primary     | Google Gemini (AI Studio free tier) | `google-genai` | `LLM_MODEL`             | `gemini-3.8-flash`      |
+| Backup      | Groq (free tier)                    | `groq`         | `GROQ_MODEL`            | `openai/gpt-oss-120b`   |
+| Last resort | Google Gemini Flash-Lite            | `google-genai` | `GEMINI_FALLBACK_MODEL` | `gemini-3.5-flash-lite` |
 
 `LLM_PROVIDER` (`gemini` or `groq`, default `gemini`) picks the primary; the other one is the
-backup. Model names are never hardcoded.
+backup. Model names come from environment variables. The one built-in default is the Flash-Lite
+last resort, so existing deployments get it without new settings. Free-tier quotas are per model,
+and the main Gemini model only allows about 20 requests a day, while Groq allows 8,000 tokens a
+minute (one tailoring request uses 4,000 to 7,000). Flash-Lite has its own, much larger quota, so
+it keeps the app working when both are spent. It tailors a little less carefully, which is why it
+goes last. Set `GEMINI_FALLBACK_MODEL=` (empty) to turn it off.
 
 - **Gemini.** `gemini-3.8-flash` is the current stable Gemini 3 Flash model and is free on AI
   Studio. Gemini 1.x, 2.0 and 2.5 model ids are rejected at startup because those families are
@@ -74,10 +80,14 @@ backup. Model names are never hardcoded.
    exponential backoff (1 s, then 2 s, plus jitter). A short server-suggested wait (up to 10 s) is
    honored; an exhausted daily quota or a long suggested wait skips straight to the fallback. Each
    provider gets at most twice its per-call timeout, retries included.
-2. If the primary still fails, the request goes to the backup provider (with the same retries),
-   but only if its API key and model are configured.
-3. If both fail, the API returns `503 llm_busy` with `Retry-After: 60` and the message "The AI
-   service is busy right now. Please try again in a minute."
+2. If the primary still fails, the request goes to the backup provider and then to the Flash-Lite
+   last resort (each with the same retries), but only if its API key and model are configured.
+3. If all fail, the API returns `503 llm_busy` with `Retry-After: 60` and the message "The AI
+   service is busy right now. Please try again in a minute." When every provider reported a used-up
+   quota, the message says to try again in a few hours instead.
+
+Groq sometimes rejects its own output as invalid JSON without returning any text. With nothing to
+repair, that counts as a provider error and moves on to the next provider.
 
 Configuration errors (bad key, unknown model) and invalid output are not retried on the other
 provider, since they point to a setup or prompt problem rather than a busy service.
@@ -197,6 +207,7 @@ npm run lint && npm run typecheck && npm run test && npm run build
 | `LLM_PROVIDER`                               | backend  | no                                  | `gemini`                | Primary provider: `gemini` or `groq`. The other is the backup.                                            |
 | `GEMINI_API_KEY`                             | backend  | one of the two keys                 | none                    | Gemini API key. Never commit it.                                                                          |
 | `LLM_MODEL`                                  | backend  | with Gemini key                     | none                    | Gemini 3 Flash-class model id, e.g. `gemini-3.8-flash`.                                                   |
+| `GEMINI_FALLBACK_MODEL`                      | backend  | no                                  | `gemini-3.5-flash-lite` | Last-resort Gemini model with its own free quota. Empty turns it off.                                     |
 | `GROQ_API_KEY`                               | backend  | one of the two keys                 | none                    | Groq API key. Never commit it.                                                                            |
 | `GROQ_MODEL`                                 | backend  | with Groq key                       | none                    | Groq model id, e.g. `openai/gpt-oss-120b`.                                                                |
 | `FRONTEND_URL`                               | backend  | yes                                 | `http://localhost:3000` | The only origin allowed by CORS (no trailing slash).                                                      |
@@ -361,10 +372,17 @@ listens on `0.0.0.0:$PORT`.
   size-matched fallback, so there's no layout shift (CLS 0). The browser preconnects to the API
   (sent as an HTTP `Link` header) so the warm-up and tailoring requests skip the connection setup.
 - **Smaller JavaScript.** The Neon Auth SDK is the largest client dependency (about 130 KB
-  compressed). It loads only where it's needed: the desktop header's account actions (lazily, after
-  the page is interactive), the mobile menu's account section (when the menu opens) and the sign-in
-  forms. API calls get their token from `/api/auth/token` and the tailor page checks the session
-  with one request to `/api/auth/get-session`, so neither needs the SDK.
+  compressed). It loads only where it's needed: the header's account actions for browsers that were
+  signed in before (see "Instant sign-in button" below) and the sign-in forms. API calls get their
+  token from `/api/auth/token` and the tailor page checks the session with one request to
+  `/api/auth/get-session`, so neither needs the SDK.
+- **Server functions in Singapore.** `frontend/vercel.json` pins Vercel functions to `sin1`. By
+  default they ran in Washington DC, so every session check went India → US → Neon Auth in
+  Singapore → US → India (0.7 s warm, 2.8 s cold). Singapore sits next to Neon Auth, the Neon
+  database and the Render API.
+- **Static sign-in pages.** The sign-in and sign-up forms read `?next=` in the browser instead of
+  from server `searchParams`, so the whole form is in the prerendered HTML rather than streamed from
+  a server render behind a skeleton.
 
 Lighthouse on a local production build (`npm run build && npm start`), mobile emulation:
 
@@ -389,6 +407,14 @@ typography scale, spacing, radii, shadows, motion). Components only use those to
   name TailorCV, which was too generic. Before choosing it we searched the web (no product or
   company uses it) and checked that `quillvita.com`, `.app` and `.io` were unregistered. The `/tailor`
   route keeps its name because it describes the action, not the brand.
+- **Instant sign-in button.** The header can't know on the server whether you're signed in, and
+  asking Neon Auth means downloading the SDK and making a session request first. So the browser
+  keeps a non-secret hint in `localStorage` (`quillvita:signed-in`) that is set on sign-in and
+  cleared on sign-out or when a session check finds no session. Without the hint, the header shows
+  a plain "Sign in" link right away and loads nothing auth-related. With it, the real session is
+  checked as before. The hint never grants access; pages and the API still verify the session. A
+  browser that signed in before the hint existed sees "Sign in" once, and opening the sign-in page
+  notices the session and sends it on.
 - **Original and tailored in one call.** The model returns a faithful transcription of the uploaded
   resume alongside the tailored version. This gives structured data for the diff view and lets the
   backend enforce truthfulness without a second LLM call.

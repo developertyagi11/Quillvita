@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     llm_provider: ProviderName = "gemini"
     gemini_api_key: SecretStr = SecretStr("")
     llm_model: str = ""
+    # Free-tier quotas are per model, so a lighter Gemini model still answers once the main
+    # model's small daily quota is spent. Set to an empty string to turn it off.
+    gemini_fallback_model: str = "gemini-3.5-flash-lite"
     groq_api_key: SecretStr = SecretStr("")
     groq_model: str = ""
 
@@ -39,13 +42,13 @@ class Settings(BaseSettings):
     max_job_description_chars: int = 20_000
     max_resume_chars: int = 30_000
 
-    @field_validator("llm_model")
+    @field_validator("llm_model", "gemini_fallback_model")
     @classmethod
     def reject_retired_gemini_models(cls, value: str) -> str:
         model = value.strip()
         if RETIRED_GEMINI_MODELS.match(model):
             raise ValueError(
-                f"LLM_MODEL={model!r} belongs to a Gemini 1.x/2.x family that is being shut "
+                f"Gemini model {model!r} belongs to a Gemini 1.x/2.x family that is being shut "
                 "down. Use a Gemini 3 Flash model such as gemini-3.8-flash."
             )
         return model

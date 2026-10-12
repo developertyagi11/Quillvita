@@ -2,6 +2,7 @@
 
 import { History, LogOut } from "lucide-react";
 
+import { HeaderSignInLink } from "@/components/features/layout/SignInLinks";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAccount } from "@/hooks/useAccount";
@@ -15,13 +16,7 @@ export function AccountMenu(): React.JSX.Element {
     return <Skeleton className="h-8 w-40" />;
   }
 
-  if (state.status === "signed-out") {
-    return (
-      <ButtonLink href={ROUTES.signIn} size="sm" variant="tertiary">
-        Sign in
-      </ButtonLink>
-    );
-  }
+  if (state.status === "signed-out") return <HeaderSignInLink />;
 
   return (
     <nav aria-label="Account" className="flex items-center gap-xs">

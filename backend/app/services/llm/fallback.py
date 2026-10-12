@@ -6,12 +6,15 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from app.core.config import ProviderName
-from app.errors import AppError, LLMUnavailableError
+from app.errors import AppError, LLMRateLimitError, LLMUnavailableError
 from app.services.llm.base import TRANSIENT_ERRORS, JsonSchema, LLMClient
 
 logger = logging.getLogger(__name__)
 
 BUSY_MESSAGE = "The AI service is busy right now. Please try again in a minute."
+QUOTA_MESSAGE = (
+    "The AI service has used up its free quota for now. Please try again in a few hours."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +32,7 @@ class FallbackClient:
 
     async def generate_json(self, system: str, user: str, *, schema: JsonSchema) -> str:
         last_error: AppError | None = None
+        all_out_of_quota = True
         for provider in self.providers:
             if last_error is not None:
                 logger.warning("Falling back to %s (%s)", provider.name, provider.model)
@@ -43,6 +47,7 @@ class FallbackClient:
                     exc.code,
                 )
                 last_error = exc
+                all_out_of_quota &= isinstance(exc, LLMRateLimitError) and exc.quota_exhausted
                 continue
             logger.info(
                 "LLM request handled by %s (%s) in %.1fs",
@@ -51,4 +56,5 @@ class FallbackClient:
                 time.monotonic() - started,
             )
             return result
-        raise LLMUnavailableError(BUSY_MESSAGE) from last_error
+        message = QUOTA_MESSAGE if all_out_of_quota else BUSY_MESSAGE
+        raise LLMUnavailableError(message) from last_error

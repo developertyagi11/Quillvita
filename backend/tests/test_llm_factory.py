@@ -7,15 +7,24 @@ from app.schemas.customize import LLMCustomization
 from app.services.json_schema import to_llm_schema, to_strict_schema
 from app.services.llm.factory import create_llm_client
 
+GEMINI = ("gemini", "gemini-3.8-flash")
+GROQ = ("groq", "openai/gpt-oss-120b")
+GEMINI_LITE = ("gemini", "gemini-3.5-flash-lite")
+
 
 def settings(
-    provider: ProviderName = "gemini", *, gemini: bool = True, groq: bool = True
+    provider: ProviderName = "gemini",
+    *,
+    gemini: bool = True,
+    groq: bool = True,
+    gemini_fallback_model: str = "gemini-3.5-flash-lite",
 ) -> Settings:
     return Settings(
         _env_file=None,
         llm_provider=provider,
         gemini_api_key=SecretStr("g-key" if gemini else ""),
         llm_model="gemini-3.8-flash",
+        gemini_fallback_model=gemini_fallback_model,
         groq_api_key=SecretStr("q-key" if groq else ""),
         groq_model="openai/gpt-oss-120b",
     )
@@ -24,17 +33,20 @@ def settings(
 @pytest.mark.parametrize(
     ("config", "expected"),
     [
-        (settings("gemini"), ("gemini", "groq")),
-        (settings("groq"), ("groq", "gemini")),
-        (settings("gemini", groq=False), ("gemini",)),
-        (settings("groq", groq=False), ("gemini",)),
+        (settings("gemini"), (GEMINI, GROQ, GEMINI_LITE)),
+        (settings("groq"), (GROQ, GEMINI, GEMINI_LITE)),
+        (settings("gemini", groq=False), (GEMINI, GEMINI_LITE)),
+        (settings("groq", groq=False), (GEMINI, GEMINI_LITE)),
+        (settings("gemini", gemini=False), (GROQ,)),
+        (settings("gemini", gemini_fallback_model=""), (GEMINI, GROQ)),
+        (settings("gemini", gemini_fallback_model="gemini-3.8-flash"), (GEMINI, GROQ)),
     ],
 )
-def test_factory_orders_primary_then_configured_fallback(
-    config: Settings, expected: tuple[str, ...]
+def test_factory_orders_primary_then_fallbacks(
+    config: Settings, expected: tuple[tuple[str, str], ...]
 ) -> None:
     chain = create_llm_client(config)
-    assert tuple(provider.name for provider in chain.providers) == expected
+    assert tuple((provider.name, provider.model) for provider in chain.providers) == expected
 
 
 def test_factory_requires_at_least_one_provider() -> None:
@@ -46,6 +58,8 @@ def test_factory_requires_at_least_one_provider() -> None:
 def test_settings_reject_retired_gemini_models(model: str) -> None:
     with pytest.raises(ValidationError, match="Gemini 3 Flash"):
         Settings(_env_file=None, llm_model=model)
+    with pytest.raises(ValidationError, match="Gemini 3 Flash"):
+        Settings(_env_file=None, gemini_fallback_model=model)
 
 
 def test_strict_schema_inlines_refs_and_closes_every_object() -> None:

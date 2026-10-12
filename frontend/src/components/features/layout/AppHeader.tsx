@@ -7,17 +7,20 @@ import { useEffect, useState } from "react";
 
 import { BrandLink } from "@/components/features/layout/BrandLink";
 import { MobileMenu } from "@/components/features/layout/MobileMenu";
+import { HeaderSignInLink } from "@/components/features/layout/SignInLinks";
 import { SECTION_LINKS } from "@/components/features/layout/site-nav";
 import { ButtonLink } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useSessionHint } from "@/hooks/useSessionHint";
 import { cn } from "@/lib/cn";
 import { ROUTES } from "@/lib/routes";
 
 const MENU_ID = "mobile-menu";
 const ACCOUNT_SKELETON = <Skeleton className="h-8 w-40" />;
 
-// The auth client is the largest dependency on the page, so phones only load it when the menu opens.
+// The auth client is the largest dependency on the page, so it only loads for browsers that were
+// signed in before; phones wait until the menu opens.
 const AccountMenu = dynamic(
   () => import("@/components/features/layout/AccountMenu").then((module) => module.AccountMenu),
   { ssr: false, loading: () => ACCOUNT_SKELETON },
@@ -31,6 +34,7 @@ interface AppHeaderProps {
 // No `usePathname()` here: it would block every dynamic route under `cacheComponents`.
 export function AppHeader({ showPrimaryCta }: AppHeaderProps): React.JSX.Element {
   const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const hasSession = useSessionHint();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -43,6 +47,8 @@ export function AppHeader({ showPrimaryCta }: AppHeaderProps): React.JSX.Element
   }, [isMenuOpen]);
 
   const closeMenu = (): void => setIsMenuOpen(false);
+  let account = ACCOUNT_SKELETON;
+  if (isDesktop) account = hasSession ? <AccountMenu /> : <HeaderSignInLink />;
 
   return (
     <header className="sticky top-0 z-40 border-b border-hairline bg-canvas/90 backdrop-blur">
@@ -68,7 +74,7 @@ export function AppHeader({ showPrimaryCta }: AppHeaderProps): React.JSX.Element
         </nav>
 
         <div className="ml-auto flex items-center gap-xs">
-          <div className="hidden lg:flex">{isDesktop ? <AccountMenu /> : ACCOUNT_SKELETON}</div>
+          <div className="hidden lg:flex">{account}</div>
           {showPrimaryCta ? (
             <ButtonLink href={ROUTES.tailor} size="sm" variant="primary" onClick={closeMenu}>
               <span className="sm:hidden">Get started</span>

@@ -2,24 +2,24 @@
 
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useId, useState } from "react";
 import type { FormEvent } from "react";
 
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { authClient } from "@/lib/auth/client";
+import { setSessionHint } from "@/lib/auth/session-hint";
 import { clearAccessToken } from "@/lib/auth/token";
 import { cn } from "@/lib/cn";
-import { DEFAULT_NEXT_PATH } from "@/lib/redirect";
+import { DEFAULT_NEXT_PATH, safeNextPath } from "@/lib/redirect";
 import { ROUTES } from "@/lib/routes";
 
 type AuthMode = "sign-in" | "sign-up";
 
 interface AuthFormProps {
   readonly mode: AuthMode;
-  readonly nextPath: string;
 }
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -120,13 +120,49 @@ function readField(form: FormData, name: string): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-export function AuthForm({ mode, nextPath }: AuthFormProps): React.JSX.Element {
+// Read in the browser rather than from server `searchParams`, so the form is part of the
+// prerendered page instead of waiting for a server render.
+function readNextPath(): string {
+  return safeNextPath(new URLSearchParams(window.location.search).get("next") ?? undefined);
+}
+
+function SwitchModeLink({ mode }: AuthFormProps): React.JSX.Element {
+  const nextPath = safeNextPath(useSearchParams().get("next") ?? undefined);
+  return <SwitchModeAnchor mode={mode} nextPath={nextPath} />;
+}
+
+function SwitchModeAnchor({
+  mode,
+  nextPath,
+}: AuthFormProps & { readonly nextPath: string }): React.JSX.Element {
+  return (
+    <Link
+      href={{
+        pathname: mode === "sign-in" ? ROUTES.signUp : ROUTES.signIn,
+        query: nextPath === DEFAULT_NEXT_PATH ? {} : { next: nextPath },
+      }}
+      className="text-ink underline-offset-4 hover:underline"
+    >
+      {mode === "sign-in" ? "Create an account" : "Sign in"}
+    </Link>
+  );
+}
+
+export function AuthForm({ mode }: AuthFormProps): React.JSX.Element {
   const router = useRouter();
+  const { data: session } = authClient.useSession();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const copy = COPY[mode];
+  const isSignedIn = Boolean(session);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    setSessionHint(true);
+    router.replace(readNextPath());
+  }, [isSignedIn, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -156,7 +192,8 @@ export function AuthForm({ mode, nextPath }: AuthFormProps): React.JSX.Element {
         return;
       }
       clearAccessToken();
-      router.replace(nextPath);
+      setSessionHint(true);
+      router.replace(readNextPath());
       router.refresh();
     } catch {
       setError("We couldn't reach the sign-in service. Please try again.");
@@ -204,15 +241,9 @@ export function AuthForm({ mode, nextPath }: AuthFormProps): React.JSX.Element {
       </form>
       <p className="mt-md text-body-sm text-ink-subtle">
         {mode === "sign-in" ? "New to Quillvita? " : "Already have an account? "}
-        <Link
-          href={{
-            pathname: mode === "sign-in" ? ROUTES.signUp : ROUTES.signIn,
-            query: nextPath === DEFAULT_NEXT_PATH ? {} : { next: nextPath },
-          }}
-          className="text-ink underline-offset-4 hover:underline"
-        >
-          {mode === "sign-in" ? "Create an account" : "Sign in"}
-        </Link>
+        <Suspense fallback={<SwitchModeAnchor mode={mode} nextPath={DEFAULT_NEXT_PATH} />}>
+          <SwitchModeLink mode={mode} />
+        </Suspense>
       </p>
     </Card>
   );
