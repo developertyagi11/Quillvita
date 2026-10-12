@@ -1,0 +1,26 @@
+name: Keep backend awake
+
+# Render's free plan sleeps a service after 15 minutes without traffic, and waking it takes 30-60 s.
+# Pinging every 5 minutes keeps it awake from 07:30 to about 00:30 IST (02:00-19:00 UTC).
+# It sleeps overnight because the 750 free instance hours per month are shared by every free
+# service in the Render workspace, and running 24/7 would use almost all of them.
+on:
+  schedule:
+    - cron: "*/5 2-18 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: keep-backend-awake
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL || 'https://quillvita-api.onrender.com/api/health' }}
+    steps:
+      - name: Ping the health endpoint
+        run: curl --fail --silent --show-error --retry 3 --retry-delay 15 --retry-all-errors --max-time 90 "$HEALTH_URL"

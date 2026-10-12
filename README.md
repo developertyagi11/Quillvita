@@ -4,7 +4,8 @@ Quillvita tailors a resume to a specific job posting. Paste a job description, u
 resume, and an LLM rewrites the summary, skills, experience and projects to mirror the role's
 language without inventing anything. You get a resume-style preview, a match score and ATS score
 with tips, the skills you already match, keywords you are missing (with reasons), every change
-explained, a side-by-side diff, an optional cover letter, and downloads as DOCX, PDF or TXT.
+explained with a button to undo it, an editor for tweaking any line yourself, a side-by-side diff,
+an optional cover letter, and downloads as DOCX, PDF or TXT.
 
 Signing in is optional. Signed-in users get a history: every resume they tailor is saved with its
 results, so they can reopen a past run, download the original file again, or delete it. Accounts
@@ -422,6 +423,15 @@ typography scale, spacing, radii, shadows, motion). Components only use those to
   `history_id` and the latest letter is stored in a `cover_letter` column (added automatically on
   startup), so it reappears when the run is reopened from history. Saving is best effort: a failure
   is logged and the letter is still returned.
+- **Undo and edit happen in the browser.** The results view keeps a working copy of the tailored
+  resume. Each change can be undone or kept again from the Changes tab, and "Edit resume" opens a
+  form for every field, with bullets that can be added and removed. Downloads, Copy, Compare and
+  the cover letter all use the working copy. Changes are matched to their text by content, not by
+  position, because the editor can delete or add lines. A change whose text the model paraphrased
+  is matched to the most similar line in its section. Once you rewrite a changed line yourself, the
+  change shows as "edited by you" and its buttons disappear, so undo never overwrites your
+  wording. A removed line, or a change that can't be matched, can only be fixed in the editor.
+  Blank lines left by undoing an added bullet or by the editor are dropped from the export.
 - **`schema` on the LLM interface.** The brief suggested `generate_json(system, user)`. The method
   also takes the JSON schema as a keyword argument, because both providers need it for structured
   output, and passing it keeps the provider clients free of any resume-specific code.
@@ -453,8 +463,13 @@ typography scale, spacing, radii, shadows, motion). Components only use those to
 - **Noto Sans for PDFs.** The bundled fonts (SIL Open Font License) make PDF export work with
   accented names and non-Latin characters, which core PDF fonts cannot render.
 - **Inter** replaces Linear's proprietary typeface.
-- **Render cold starts.** The frontend sends a warm-up request to `/api/health` on page load so a
-  sleeping free-tier backend starts while the user fills in the form.
+- **Render cold starts.** A scheduled GitHub Action
+  (`.github/workflows/keep-backend-awake.yml`) pings `/api/health` every 5 minutes from 07:30 to
+  about 00:30 IST, so daytime visitors never hit a sleeping backend. It doesn't run overnight
+  because Render's 750 free instance hours a month are shared by every free service in the
+  workspace, and 24/7 would use about 744 of them. Outside those hours, the frontend sends a
+  warm-up request to `/api/health` on page load, so the backend starts while the user fills in the
+  form. Set the `BACKEND_HEALTH_URL` repository variable if the backend URL changes.
 - **Optional accounts.** Tailoring stays anonymous by default; signing in only adds history. Files
   are processed in memory and never written to the server's disk (Render's filesystem is
   ephemeral). For signed-in users they go to the Neon bucket instead.
@@ -497,9 +512,16 @@ typography scale, spacing, radii, shadows, motion). Components only use those to
 - The exported layout is a clean single-column template; the original resume's visual design is not
   preserved.
 - Scores are LLM judgments calibrated by the prompt, not a real ATS.
+- Edits and undone changes are not saved: they last until you leave the results page, and
+  reopening a run from history shows the AI version again. Download the resume to keep them. The
+  scores and matched skills describe the AI version, not your edits. The editor changes existing
+  entries but can't add or remove whole jobs, projects or schools.
 - The upload size check happens after the multipart body has been received (Starlette spools it),
   so very large uploads still consume bandwidth before they are rejected.
-- Free Render instances sleep after 15 minutes of inactivity; the first request can take 30–60 s.
+- Free Render instances sleep after 15 minutes of inactivity. The keep-awake workflow covers
+  daytime in India only, so the first request at night can take 30–60 s. GitHub may delay
+  scheduled runs when it's busy, and it disables scheduled workflows in a repository with no
+  activity for 60 days (re-enable it from the Actions tab).
 - The AI Studio free tier has small per-project quotas (Google shows the exact numbers in AI
   Studio; Gemini 3.8 Flash has been reported at roughly 20 requests per day). A tailoring run uses
   one request, or two if the repair retry fires, and a cover letter uses one more. Once the Gemini

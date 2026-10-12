@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Check, PencilLine, RotateCcw } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { ChangesList } from "@/components/features/results/ChangesList";
 import { CoverLetterPanel } from "@/components/features/results/cover-letter/CoverLetterPanel";
 import { DiffView } from "@/components/features/results/diff/DiffView";
+import { ResumeEditor } from "@/components/features/results/editor/ResumeEditor";
 import { ExportToolbar } from "@/components/features/results/ExportToolbar";
 import { ScoreCard } from "@/components/features/results/insights/ScoreCard";
 import {
@@ -12,10 +14,13 @@ import {
   MissingKeywordsCard,
 } from "@/components/features/results/insights/SkillsInsights";
 import { ResumePreview } from "@/components/features/results/preview/ResumePreview";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { panelId, TabList, tabId } from "@/components/ui/Tabs";
 import type { TabItem } from "@/components/ui/Tabs";
 import { useCoverLetter } from "@/hooks/useCoverLetter";
+import { useResumeDraft } from "@/hooks/useResumeDraft";
+import { locateChanges } from "@/lib/resume-edit";
 import type { CoverLetter, CustomizeResponse } from "@/types/api";
 
 type ResultTab = "resume" | "changes" | "compare" | "cover-letter";
@@ -41,7 +46,13 @@ export function ResultsView({
   onAddSkills,
 }: ResultsViewProps): React.JSX.Element {
   const [tab, setTab] = useState<ResultTab>("resume");
-  const coverLetter = useCoverLetter(result.tailored, jobDescription, {
+  const [isEditing, setIsEditing] = useState(false);
+  const draft = useResumeDraft(result.tailored);
+  const targets = useMemo(
+    () => locateChanges(result.tailored, result.changes),
+    [result.tailored, result.changes],
+  );
+  const coverLetter = useCoverLetter(draft.resume, jobDescription, {
     historyId,
     saved: savedCoverLetter,
   });
@@ -54,7 +65,7 @@ export function ResultsView({
 
   return (
     <section aria-label="Results" className="flex flex-col gap-lg">
-      <ExportToolbar resume={result.tailored} onEdit={onEdit} />
+      <ExportToolbar resume={draft.resume} onEdit={onEdit} />
       <div className="grid items-start gap-lg lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
         <Card as="div" className="min-w-0 overflow-hidden">
           <TabList
@@ -71,18 +82,55 @@ export function ResultsView({
             tabIndex={0}
           >
             {tab === "resume" ? (
-              <ResumePreview resume={result.tailored} highlightedSkills={result.matched_skills} />
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-sm border-b border-hairline px-lg py-sm">
+                  <p className="text-caption text-ink-subtle">
+                    {isEditing
+                      ? "Changes apply to downloads right away. They're kept until you leave this page."
+                      : draft.isEdited
+                        ? "Showing your edited version."
+                        : "Want to tweak something? Edit any line before you download."}
+                  </p>
+                  <div className="flex gap-xs">
+                    {draft.isEdited ? (
+                      <Button size="sm" variant="tertiary" icon={RotateCcw} onClick={draft.reset}>
+                        Reset all edits
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      variant={isEditing ? "primary" : "secondary"}
+                      icon={isEditing ? Check : PencilLine}
+                      onClick={() => setIsEditing((value) => !value)}
+                    >
+                      {isEditing ? "Done" : "Edit resume"}
+                    </Button>
+                  </div>
+                </div>
+                {isEditing ? (
+                  <ResumeEditor key={draft.revision} resume={draft.draft} onEdit={draft.edit} />
+                ) : (
+                  <ResumePreview resume={draft.resume} highlightedSkills={result.matched_skills} />
+                )}
+              </>
             ) : null}
-            {tab === "changes" ? <ChangesList changes={result.changes} /> : null}
+            {tab === "changes" ? (
+              <ChangesList
+                changes={result.changes}
+                targets={targets}
+                resume={draft.draft}
+                onChoose={draft.choose}
+              />
+            ) : null}
             {tab === "compare" ? (
               <DiffView
                 original={result.original}
-                tailored={result.tailored}
+                tailored={draft.resume}
                 sections={result.sections}
               />
             ) : null}
             {tab === "cover-letter" ? (
-              <CoverLetterPanel candidateName={result.tailored.name} generator={coverLetter} />
+              <CoverLetterPanel candidateName={draft.resume.name} generator={coverLetter} />
             ) : null}
           </div>
         </Card>

@@ -27,7 +27,9 @@ export function ExportToolbar({ resume, onEdit }: ExportToolbarProps): React.JSX
     <div className="flex flex-col gap-md sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 className="text-card-title text-ink">Your tailored resume</h2>
-        <p className="mt-xxs text-body-sm text-ink-subtle">Review it, then download or copy.</p>
+        <p className="mt-xxs text-body-sm text-ink-subtle">
+          Review it, undo any change or edit a line, then download or copy.
+        </p>
       </div>
       <div
         role="group"
@@ -56,7 +58,7 @@ export function ExportToolbar({ resume, onEdit }: ExportToolbarProps): React.JSX
           {copied ? "Copied" : "Copy"}
         </Button>
         <Button size="sm" variant="tertiary" icon={PencilLine} onClick={onEdit}>
-          Edit inputs
+          Change inputs
         </Button>
       </div>
     </div>
