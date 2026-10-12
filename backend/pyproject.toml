@@ -1,0 +1,56 @@
+[project]
+name = "quillvita-backend"
+version = "1.0.0"
+description = "FastAPI service that tailors resumes to job descriptions with an LLM."
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "N",    # pep8-naming
+    "SIM",  # simplify
+    "RUF",  # ruff-specific
+    "ANN",  # annotations
+    "ASYNC",
+    "PT",   # pytest style
+    "RET",  # return statements
+    "T20",  # no print
+    "ERA",  # no commented-out code
+]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["^\\.venv/"]
+
+[[tool.mypy.overrides]]
+module = ["pdfplumber", "pdfplumber.*", "pdfminer", "pdfminer.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["ignore::DeprecationWarning:google.genai.*"]

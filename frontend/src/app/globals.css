@@ -1,0 +1,93 @@
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+/*
+ * Design tokens from DESIGN.md (Linear design analysis).
+ * Danger and warning are additions: DESIGN.md lists form error styling as a known gap.
+ */
+:root {
+  color-scheme: dark;
+
+  --color-canvas: #010102;
+  --color-surface-1: #0f1011;
+  --color-surface-2: #141516;
+  --color-surface-3: #18191a;
+  --color-surface-4: #191a1b;
+
+  --color-hairline: #23252a;
+  --color-hairline-strong: #34343a;
+  --color-hairline-tertiary: #3e3e44;
+
+  --color-ink: #f7f8f8;
+  --color-ink-muted: #d0d6e0;
+  --color-ink-subtle: #8a8f98;
+  /* Linear's #62666d is ~3.3:1 here; this is the darkest gray in its hue that meets WCAG AA on every surface. */
+  --color-ink-tertiary: #82868d;
+
+  --color-primary: #5e6ad2;
+  --color-primary-hover: #828fff;
+  --color-primary-focus: #5e69d1;
+  --color-on-primary: #ffffff;
+
+  --color-inverse-canvas: #ffffff;
+  --color-inverse-ink: #000000;
+
+  --color-success: #27a644;
+  --color-warning: #d9a53f;
+  --color-danger: #e5484d;
+  --color-overlay: #000000;
+
+  --font-display:
+    var(--font-inter), "SF Pro Display", -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-text:
+    var(--font-inter), "SF Pro Text", -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  --focus-ring: 0 0 0 2px color-mix(in srgb, var(--color-primary-focus) 50%, transparent);
+  --edge-highlight: inset 0 1px 0 0 rgb(255 255 255 / 0.04);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* Keeps in-page anchors clear of the sticky 56px header. */
+    scroll-padding-top: 72px;
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
