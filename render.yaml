@@ -2,6 +2,7 @@ services:
   - type: web
     name: quillvita-api
     runtime: docker
+    region: singapore
     plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend

@@ -317,7 +317,8 @@ Interactive docs are served by FastAPI at `/docs`.
 
 1. Push the repository to GitHub.
 2. In Render, choose **New > Blueprint**, select the repo. Render reads `render.yaml` and creates
-   the `quillvita-api` Docker web service (`backend/Dockerfile`, health check `/api/health`).
+   the `quillvita-api` Docker web service (`backend/Dockerfile`, health check `/api/health`) in
+   the Singapore region, next to the Neon database (`aws-ap-southeast-1`).
 3. When prompted, set `GEMINI_API_KEY`, `GROQ_API_KEY` and `FRONTEND_URL` (your Vercel URL, e.g.
    `https://quillvita.vercel.app`, no trailing slash). `LLM_PROVIDER` (`gemini`), `LLM_MODEL`
    (`gemini-3.8-flash`) and `GROQ_MODEL` (`openai/gpt-oss-120b`) are preset. For history, also set
