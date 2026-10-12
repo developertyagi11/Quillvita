@@ -1,6 +1,9 @@
 export const MIN_JD_LENGTH = 100;
 export const MAX_JD_LENGTH = 20_000;
 
+export const MAX_CONFIRMED_SKILLS = 20;
+export const MAX_CONFIRMED_SKILL_LENGTH = 80;
+
 export const MAX_FILE_SIZE_MB = 5;
 export const BYTES_PER_KB = 1024;
 export const BYTES_PER_MB = BYTES_PER_KB * BYTES_PER_KB;

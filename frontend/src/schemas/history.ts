@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { coverLetterResponseSchema } from "@/schemas/cover-letter";
 import { customizeResponseSchema } from "@/schemas/customize";
 
 export const historySummarySchema = z.object({
@@ -18,6 +19,7 @@ export const historyListSchema = z.object({
 export const historyDetailSchema = historySummarySchema.extend({
   job_description: z.string(),
   result: customizeResponseSchema,
+  cover_letter: coverLetterResponseSchema.nullable().optional(),
 });
 
 export const fileDownloadSchema = z.object({

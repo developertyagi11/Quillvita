@@ -206,7 +206,7 @@ npm run lint && npm run typecheck && npm run test && npm run build
 | `STORAGE_BUCKET`                             | backend  | no                                  | `cv-uploads`            | Neon storage bucket for uploaded resumes.                                                                 |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | backend  | for history                         | none                    | Neon storage credentials (S3-compatible). Secret.                                                         |
 | `AWS_ENDPOINT_URL_S3`, `AWS_REGION`          | backend  | for history                         | none                    | Neon storage endpoint and region.                                                                         |
-| `NEXT_PUBLIC_API_URL`                        | frontend | yes                                 | none                    | Public URL of the backend, e.g. `https://quillvita-api.onrender.com`.                                      |
+| `NEXT_PUBLIC_API_URL`                        | frontend | yes                                 | none                    | Public URL of the backend, e.g. `https://quillvita-api.onrender.com`.                                     |
 | `NEON_AUTH_COOKIE_SECRET`                    | frontend | yes                                 | none                    | At least 32 random characters (`openssl rand -base64 32`). Signs the session cookie. Secret, server-only. |
 | `NEXT_PUBLIC_SITE_URL`                       | frontend | with a custom domain                | Vercel production URL   | Public site URL for canonical links, Open Graph images, `sitemap.xml` and `robots.txt`.                   |
 
@@ -288,16 +288,16 @@ Request flow for `POST /api/customize`:
 
 All errors use one shape: `{ "error": { "code": string, "message": string } }`.
 
-| Method | Path                     | Body                                                                                                                                     | Response                                                                                                                                                                                                                                         |
-| ------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| GET    | `/api/health`            | none                                                                                                                                     | `{ "status": "ok" }`                                                                                                                                                                                                                             |
-| POST   | `/api/customize`         | multipart: `resume` (file), `job_description` (string), `sections` (repeatable, optional: `summary`, `skills`, `experience`, `projects`) | `CustomizeResponse`: `original`, `tailored` (ResumeContent), `matched_skills`, `suggested_keywords[{keyword, reason}]`, `scores{match_score, match_justification, ats_score, ats_tips}`, `changes[{section, before, after, reason}]`, `sections` |
-| POST   | `/api/export`            | JSON `{ "resume": ResumeContent, "format": "docx" \| "pdf" \| "txt" }`                                                                   | File download, `Content-Disposition: attachment; filename="Name_Resume_Tailored.docx"`                                                                                                                                                           |
-| POST   | `/api/cover-letter`      | JSON `{ "resume": ResumeContent, "job_description": string, "tone": "professional" \| "enthusiastic" \| "concise" }`                     | `{ greeting, paragraphs[], closing, signature }`                                                                                                                                                                                                 |
-| GET    | `/api/history`           | none (auth required)                                                                                                                     | `{ items: [{ id, created_at, job_title, file_name, match_score, ats_score }] }`, newest first                                                                                                                                                    |
-| GET    | `/api/history/{id}`      | none (auth required)                                                                                                                     | Summary fields plus `job_description` and `result` (`CustomizeResponse`)                                                                                                                                                                         |
-| GET    | `/api/history/{id}/file` | none (auth required)                                                                                                                     | `{ url, file_name }`: presigned download URL, valid for 5 minutes                                                                                                                                                                                |
-| DELETE | `/api/history/{id}`      | none (auth required)                                                                                                                     | `204`, deletes the row and the stored file                                                                                                                                                                                                       |
+| Method | Path                     | Body                                                                                                                                                                                          | Response                                                                                                                                                                                                                                         |
+| ------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/api/health`            | none                                                                                                                                                                                          | `{ "status": "ok" }`                                                                                                                                                                                                                             |
+| POST   | `/api/customize`         | multipart: `resume` (file), `job_description` (string), `sections` (repeatable, optional: `summary`, `skills`, `experience`, `projects`), `confirmed_skills` (repeatable, optional, up to 20) | `CustomizeResponse`: `original`, `tailored` (ResumeContent), `matched_skills`, `suggested_keywords[{keyword, reason}]`, `scores{match_score, match_justification, ats_score, ats_tips}`, `changes[{section, before, after, reason}]`, `sections` |
+| POST   | `/api/export`            | JSON `{ "resume": ResumeContent, "format": "docx" \| "pdf" \| "txt" }`                                                                                                                        | File download, `Content-Disposition: attachment; filename="Name_Resume_Tailored.docx"`                                                                                                                                                           |
+| POST   | `/api/cover-letter`      | JSON `{ "resume": ResumeContent, "job_description": string, "tone": "professional" \| "enthusiastic" \| "concise", "history_id"?: string }`                                                   | `{ greeting, paragraphs[], closing, signature }`; with a token and the caller's own `history_id`, the letter is also saved on that run                                                                                                           |
+| GET    | `/api/history`           | none (auth required)                                                                                                                                                                          | `{ items: [{ id, created_at, job_title, file_name, match_score, ats_score }] }`, newest first                                                                                                                                                    |
+| GET    | `/api/history/{id}`      | none (auth required)                                                                                                                                                                          | Summary fields plus `job_description`, `result` (`CustomizeResponse`) and `cover_letter` (the latest one, or `null`)                                                                                                                             |
+| GET    | `/api/history/{id}/file` | none (auth required)                                                                                                                                                                          | `{ url, file_name }`: presigned download URL, valid for 5 minutes                                                                                                                                                                                |
+| DELETE | `/api/history/{id}`      | none (auth required)                                                                                                                                                                          | `204`, deletes the row and the stored file                                                                                                                                                                                                       |
 
 `POST /api/customize` accepts an optional `Authorization: Bearer <jwt>`. With a valid token the run
 is saved and the response includes `history_id`; without one it behaves as before. An invalid or
@@ -398,11 +398,30 @@ typography scale, spacing, radii, shadows, motion). Components only use those to
     transcription, so they cannot change.
   - A tailored skill is kept only if it is in the original skills list or every word of it appears
     in the resume text.
-  - Tools, products and titles named in the job description (capitalized mid-sentence), the
-    model's own "missing keywords", and vague magnitudes such as "millions" may not appear in the
-    tailored text unless the resume already uses them. A summary, role or project that breaks this
-    rule is reverted to its original wording, and the matching change entry is dropped.
+  - Tools and products named in the job description, the model's own "missing keywords",
+    seniority words ("Senior", "Lead") and vague magnitudes such as "millions" may not appear in
+    the tailored text unless the resume already uses them. A term counts as a tool when it looks
+    like one (a digit or `+#.`, a short acronym, an inner capital such as "GitLab") or is one of
+    two or more capitalized names in a list ("Jest, Cypress and Playwright"). Ordinary words that
+    happen to be capitalized ("Strong", "Experience") are ignored, versions count as a match
+    ("Python3" for "Python"), and broad terms accept their specific forms ("SQL" for "PostgreSQL").
+    A summary, role or project that breaks this rule is reverted to its original wording, and the
+    matching change entry is dropped. An earlier version flagged every capitalized word, which
+    reverted almost every change on real job posts.
+  - "Missing keywords" the resume already names are removed from the list.
   - Changes are filtered to the selected sections.
+- **Missing keywords are never added automatically.** The tool can't know whether you have a
+  skill your resume doesn't mention. Instead, the missing-keywords card lets you tick the ones you
+  genuinely have (or type others) and re-tailor. They're sent as `confirmed_skills`, the model may
+  add them to the skills list and summary but not to past roles or metrics, and the guardrails
+  treat them as evidence. Re-tailoring always includes the skills section and saves a new history
+  entry. It's offered only right after tailoring, since history doesn't keep the uploaded file in
+  the browser.
+- **Cover letters are saved with the run.** The letter's state lives in the results view, so
+  switching tabs no longer discards it. For signed-in users, the request carries the run's
+  `history_id` and the latest letter is stored in a `cover_letter` column (added automatically on
+  startup), so it reappears when the run is reopened from history. Saving is best effort: a failure
+  is logged and the letter is still returned.
 - **`schema` on the LLM interface.** The brief suggested `generate_json(system, user)`. The method
   also takes the JSON schema as a keyword argument, because both providers need it for structured
   output, and passing it keeps the provider clients free of any resume-specific code.

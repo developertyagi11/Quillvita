@@ -16,11 +16,20 @@ export interface CoverLetterGenerator {
   readonly generate: () => Promise<void>;
 }
 
+interface CoverLetterOptions {
+  /** Saved run to attach new letters to, so they reappear when the run is reopened. */
+  readonly historyId: string | null;
+  readonly saved: CoverLetter | null;
+}
+
 export function useCoverLetter(
   resume: ResumeContent,
   jobDescription: string,
+  { historyId, saved }: CoverLetterOptions,
 ): CoverLetterGenerator {
-  const [state, setState] = useState<AsyncState<CoverLetter>>(IDLE_STATE);
+  const [state, setState] = useState<AsyncState<CoverLetter>>(
+    saved ? { status: "success", data: saved } : IDLE_STATE,
+  );
   const [tone, setTone] = useState<CoverLetterTone>("professional");
   const controllerRef = useRef<AbortController | null>(null);
 
@@ -32,13 +41,16 @@ export function useCoverLetter(
     controllerRef.current = controller;
     setState(LOADING_STATE);
     try {
-      const data = await generateCoverLetter({ resume, jobDescription, tone }, controller.signal);
+      const data = await generateCoverLetter(
+        { resume, jobDescription, tone, historyId },
+        controller.signal,
+      );
       setState({ status: "success", data });
     } catch (error) {
       if (controller.signal.aborted) return;
       setState({ status: "error", message: toErrorMessage(error) });
     }
-  }, [resume, jobDescription, tone]);
+  }, [resume, jobDescription, tone, historyId]);
 
   return { state, tone, setTone, generate };
 }

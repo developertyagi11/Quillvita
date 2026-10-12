@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.deps import CoverLetterGeneratorDep
+from app.api.deps import CoverLetterGeneratorDep, OptionalHistoryDep, OptionalUserDep
 from app.schemas.cover_letter import CoverLetterRequest, CoverLetterResponse
 from app.schemas.errors import ErrorResponse
 
@@ -17,6 +17,12 @@ router = APIRouter(tags=["cover-letter"])
     },
 )
 async def create_cover_letter(
-    request: CoverLetterRequest, generator: CoverLetterGeneratorDep
+    request: CoverLetterRequest,
+    generator: CoverLetterGeneratorDep,
+    user: OptionalUserDep,
+    history: OptionalHistoryDep,
 ) -> CoverLetterResponse:
-    return await generator.generate(request.resume, request.job_description, request.tone)
+    letter = await generator.generate(request.resume, request.job_description, request.tone)
+    if user is not None and history is not None and request.history_id is not None:
+        await history.save_cover_letter(user, request.history_id, letter)
+    return letter

@@ -8,12 +8,17 @@ from app.core.config import Settings
 from app.schemas.customize import CustomizeResponse, LLMCustomization
 from app.schemas.resume import ResumeContent, SectionName
 from app.services.file_validation import ValidatedFile, validate_resume_file
-from app.services.input_validation import resolve_sections, validate_job_description
+from app.services.input_validation import (
+    clean_confirmed_skills,
+    resolve_sections,
+    validate_job_description,
+)
 from app.services.llm.base import LLMClient
 from app.services.prompts import CUSTOMIZE_SYSTEM_PROMPT, build_customize_prompt
 from app.services.resume_parser import extract_resume_text
 from app.services.structured_output import generate_structured
 from app.services.truthfulness import (
+    drop_present_keywords,
     drop_unsupported_changes,
     revert_unsupported_claims,
     unsupported_terms,
@@ -73,7 +78,7 @@ def apply_guardrails(
         original=result.original,
         tailored=tailored,
         matched_skills=list(dict.fromkeys(result.matched_skills)),
-        suggested_keywords=result.suggested_keywords,
+        suggested_keywords=drop_present_keywords(result.suggested_keywords, resume_text),
         scores=result.scores,
         changes=drop_unsupported_changes(changes, terms),
         sections=list(sections),
@@ -100,26 +105,35 @@ class ResumeCustomizer:
         content: bytes,
         job_description: str,
         sections: Sequence[SectionName] | None,
+        confirmed_skills: Sequence[str] | None = None,
     ) -> CustomizedUpload:
         settings = self._settings
         clean_jd = validate_job_description(
             job_description, settings.min_job_description_chars, settings.max_job_description_chars
         )
         selected = resolve_sections(sections)
+        confirmed = clean_confirmed_skills(confirmed_skills)
         file = validate_resume_file(filename, content_type, content, settings.max_file_size_bytes)
         resume_text = await run_in_threadpool(extract_resume_text, file)
         response = await self.customize_text(
-            resume_text[: settings.max_resume_chars], clean_jd, selected
+            resume_text[: settings.max_resume_chars], clean_jd, selected, confirmed
         )
         return CustomizedUpload(file=file, job_description=clean_jd, response=response)
 
     async def customize_text(
-        self, resume_text: str, job_description: str, sections: Sequence[SectionName]
+        self,
+        resume_text: str,
+        job_description: str,
+        sections: Sequence[SectionName],
+        confirmed_skills: Sequence[str] = (),
     ) -> CustomizeResponse:
         result = await generate_structured(
             self._llm,
             system_prompt=CUSTOMIZE_SYSTEM_PROMPT,
-            user_prompt=build_customize_prompt(resume_text, job_description, sections),
+            user_prompt=build_customize_prompt(
+                resume_text, job_description, sections, confirmed_skills
+            ),
             model=LLMCustomization,
         )
-        return apply_guardrails(result, sections, resume_text, job_description)
+        evidence = "\n".join([resume_text, *confirmed_skills])
+        return apply_guardrails(result, sections, evidence, job_description)

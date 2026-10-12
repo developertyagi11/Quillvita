@@ -4,6 +4,7 @@ from pathlib import PurePath
 from uuid import UUID, uuid4
 
 from app.errors import NotFoundError
+from app.schemas.cover_letter import CoverLetterResponse
 from app.schemas.customize import CustomizeResponse
 from app.schemas.history import FileDownload, HistoryDetail, HistorySummary
 from app.services.auth import AuthUser
@@ -81,6 +82,18 @@ class HistoryService:
         if detail is None:
             raise NotFoundError(NOT_FOUND_MESSAGE)
         return detail
+
+    async def save_cover_letter(
+        self, user: AuthUser, entry_id: UUID, letter: CoverLetterResponse
+    ) -> None:
+        """Best effort: the user already has the letter on screen if saving fails."""
+        try:
+            saved = await self._repository.save_cover_letter(user.id, entry_id, letter)
+        except Exception as exc:
+            logger.warning("Could not save the cover letter: %s", type(exc).__name__)
+            return
+        if saved:
+            logger.info("Saved cover letter for history entry %s", entry_id)
 
     async def file_download(self, user: AuthUser, entry_id: UUID) -> FileDownload:
         stored = await self._repository.get_file(user.id, entry_id)

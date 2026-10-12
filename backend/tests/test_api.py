@@ -38,6 +38,37 @@ def test_customize_happy_path_with_sections() -> None:
     )
 
 
+def test_confirmed_skills_are_kept_and_no_longer_listed_as_missing() -> None:
+    llm = FakeLLM([customization_payload(("FastAPI", "Kubernetes", "Python", "Terraform"))])
+    response = build_client(llm).post(
+        "/api/customize",
+        files={"resume": ("cv.docx", make_docx(RESUME_LINES), DOCX_MIME)},
+        data={
+            "job_description": JOB_DESCRIPTION,
+            "sections": ["skills"],
+            "confirmed_skills": ["  Kubernetes ", "kubernetes", ""],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tailored"]["skills"] == ["FastAPI", "Kubernetes", "Python"]
+    assert body["suggested_keywords"] == []
+    assert "<confirmed_skills>\nKubernetes\n</confirmed_skills>" in llm.requests[0].user
+
+
+def test_too_many_confirmed_skills_are_rejected() -> None:
+    response = build_client(FakeLLM([])).post(
+        "/api/customize",
+        files={"resume": ("cv.docx", make_docx(RESUME_LINES), DOCX_MIME)},
+        data={
+            "job_description": JOB_DESCRIPTION,
+            "confirmed_skills": [f"Skill {index}" for index in range(21)],
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_input"
+
+
 def test_all_providers_busy_returns_friendly_message_and_retry_after() -> None:
     response = build_client(FakeLLM([LLMUnavailableError(BUSY_MESSAGE)])).post(
         "/api/customize",

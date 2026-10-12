@@ -1,4 +1,5 @@
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field
 
@@ -11,6 +12,9 @@ class CoverLetterRequest(BaseSchema):
     resume: ResumeContent
     job_description: str = Field(max_length=20_000)
     tone: CoverLetterTone = "professional"
+    history_id: UUID | None = Field(
+        default=None, description="Saved run to attach the letter to, for a signed-in user."
+    )
 
 
 class LLMCoverLetter(BaseSchema):

@@ -30,6 +30,10 @@ async def customize_resume(
     user: OptionalUserDep,
     history: OptionalHistoryDep,
     sections: Annotated[list[SectionName] | None, Form()] = None,
+    confirmed_skills: Annotated[
+        list[str] | None,
+        Form(description="Skills the user says they have that the resume does not mention"),
+    ] = None,
 ) -> CustomizeResponse:
     content = await read_upload_limited(resume, settings.max_file_size_bytes)
     outcome = await customizer.customize_upload(
@@ -38,6 +42,7 @@ async def customize_resume(
         content=content,
         job_description=job_description,
         sections=sections,
+        confirmed_skills=confirmed_skills,
     )
     if user is None or history is None:
         return outcome.response

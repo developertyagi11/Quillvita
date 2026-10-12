@@ -1,6 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
+from app.schemas.cover_letter import CoverLetterResponse
 from app.schemas.customize import CustomizeResponse
 from app.schemas.resume import BaseSchema
 
@@ -21,6 +22,7 @@ class HistoryList(BaseSchema):
 class HistoryDetail(HistorySummary):
     job_description: str
     result: CustomizeResponse
+    cover_letter: CoverLetterResponse | None = None
 
 
 class FileDownload(BaseSchema):

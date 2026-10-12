@@ -14,7 +14,7 @@ export const SITE_URL = (
 export const SITE_NAME = "Quillvita";
 export const SITE_TITLE = "Quillvita: Free AI resume tailoring that never invents experience";
 export const SITE_DESCRIPTION =
-  "Tailor your resume to any job description in under a minute. Quillvita rewrites your PDF or DOCX resume in the employer's language, scores the match and ATS readiness, flags missing keywords and explains every change, without inventing anything.";
+  "Tailor your resume to any job in under a minute. Get a match score, ATS tips and missing keywords, with every change explained and nothing invented.";
 export const BRAND_COLOR = "#5e6ad2";
 export const CANVAS_COLOR = "#010102";
 export const OG_IMAGE_ALT =

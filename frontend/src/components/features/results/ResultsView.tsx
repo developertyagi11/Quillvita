@@ -15,7 +15,8 @@ import { ResumePreview } from "@/components/features/results/preview/ResumePrevi
 import { Card } from "@/components/ui/Card";
 import { panelId, TabList, tabId } from "@/components/ui/Tabs";
 import type { TabItem } from "@/components/ui/Tabs";
-import type { CustomizeResponse } from "@/types/api";
+import { useCoverLetter } from "@/hooks/useCoverLetter";
+import type { CoverLetter, CustomizeResponse } from "@/types/api";
 
 type ResultTab = "resume" | "changes" | "compare" | "cover-letter";
 
@@ -23,6 +24,10 @@ interface ResultsViewProps {
   readonly result: CustomizeResponse;
   readonly jobDescription: string;
   readonly onEdit: () => void;
+  readonly historyId?: string | null;
+  readonly savedCoverLetter?: CoverLetter | null;
+  /** Re-tailors with skills the user confirms they have; omitted when the original file isn't available. */
+  readonly onAddSkills?: (skills: readonly string[]) => void;
 }
 
 const TABS_ID = "results";
@@ -31,8 +36,15 @@ export function ResultsView({
   result,
   jobDescription,
   onEdit,
+  historyId = null,
+  savedCoverLetter = null,
+  onAddSkills,
 }: ResultsViewProps): React.JSX.Element {
   const [tab, setTab] = useState<ResultTab>("resume");
+  const coverLetter = useCoverLetter(result.tailored, jobDescription, {
+    historyId,
+    saved: savedCoverLetter,
+  });
   const tabs: readonly TabItem<ResultTab>[] = [
     { id: "resume", label: "Tailored resume", shortLabel: "Resume" },
     { id: "changes", label: "Changes", count: result.changes.length },
@@ -70,14 +82,17 @@ export function ResultsView({
               />
             ) : null}
             {tab === "cover-letter" ? (
-              <CoverLetterPanel resume={result.tailored} jobDescription={jobDescription} />
+              <CoverLetterPanel candidateName={result.tailored.name} generator={coverLetter} />
             ) : null}
           </div>
         </Card>
         <aside aria-label="Match insights" className="flex flex-col gap-lg">
           <ScoreCard scores={result.scores} />
           <MatchedSkillsCard skills={result.matched_skills} />
-          <MissingKeywordsCard keywords={result.suggested_keywords} />
+          <MissingKeywordsCard
+            keywords={result.suggested_keywords}
+            {...(onAddSkills ? { onAddSkills } : {})}
+          />
         </aside>
       </div>
     </section>

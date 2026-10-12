@@ -29,6 +29,12 @@ describe("publicPageMetadata", () => {
   });
 });
 
+describe("SITE_DESCRIPTION", () => {
+  it("fits in a search result snippet without being cut off", () => {
+    expect(SITE_DESCRIPTION.length).toBeLessThanOrEqual(155);
+  });
+});
+
 describe("NO_INDEX", () => {
   it("keeps pages out of search results but lets crawlers follow links", () => {
     expect(NO_INDEX).toEqual({ index: false, follow: true });

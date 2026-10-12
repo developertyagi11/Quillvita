@@ -82,6 +82,8 @@ export interface CustomizeInput {
   readonly file: File;
   readonly jobDescription: string;
   readonly sections: readonly SectionName[];
+  /** Skills the user says they have that the resume doesn't mention. */
+  readonly confirmedSkills?: readonly string[];
 }
 
 export async function customizeResume(
@@ -92,6 +94,7 @@ export async function customizeResume(
   form.append("resume", input.file, input.file.name);
   form.append("job_description", input.jobDescription.trim());
   input.sections.forEach((section) => form.append("sections", section));
+  input.confirmedSkills?.forEach((skill) => form.append("confirmed_skills", skill));
 
   const response = await request("/api/customize", {
     init: { method: "POST", body: form },
@@ -129,6 +132,8 @@ export interface CoverLetterInput {
   readonly resume: ResumeContent;
   readonly jobDescription: string;
   readonly tone: CoverLetterTone;
+  /** Saved run the letter belongs to; the backend stores it there for the signed-in owner. */
+  readonly historyId: string | null;
 }
 
 export async function generateCoverLetter(
@@ -140,9 +145,11 @@ export async function generateCoverLetter(
       resume: input.resume,
       job_description: input.jobDescription.trim(),
       tone: input.tone,
+      history_id: input.historyId,
     }),
     timeoutMs: COVER_LETTER_TIMEOUT_MS,
     signal,
+    withAuth: input.historyId !== null,
   });
   return parseJson(response, coverLetterResponseSchema);
 }

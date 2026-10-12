@@ -8,15 +8,14 @@ import { Button } from "@/components/ui/Button";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
-import { useCoverLetter } from "@/hooks/useCoverLetter";
+import type { CoverLetterGenerator } from "@/hooks/useCoverLetter";
 import { saveTextFile } from "@/lib/download";
 import { coverLetterFilename, coverLetterToPlainText } from "@/lib/resume-text";
 import type { CoverLetterTone } from "@/types/api";
-import type { ResumeContent } from "@/types/resume";
 
 interface CoverLetterPanelProps {
-  readonly resume: ResumeContent;
-  readonly jobDescription: string;
+  readonly candidateName: string;
+  readonly generator: CoverLetterGenerator;
 }
 
 const TONE_OPTIONS: readonly { readonly value: CoverLetterTone; readonly label: string }[] = [
@@ -26,10 +25,10 @@ const TONE_OPTIONS: readonly { readonly value: CoverLetterTone; readonly label: 
 ];
 
 export function CoverLetterPanel({
-  resume,
-  jobDescription,
+  candidateName,
+  generator,
 }: CoverLetterPanelProps): React.JSX.Element {
-  const { state, tone, setTone, generate } = useCoverLetter(resume, jobDescription);
+  const { state, tone, setTone, generate } = generator;
   const { copied, copy } = useCopyToClipboard();
   const isLoading = state.status === "loading";
 
@@ -97,7 +96,7 @@ export function CoverLetterPanel({
               size="sm"
               icon={Download}
               onClick={() =>
-                saveTextFile(coverLetterToPlainText(state.data), coverLetterFilename(resume.name))
+                saveTextFile(coverLetterToPlainText(state.data), coverLetterFilename(candidateName))
               }
             >
               Download TXT

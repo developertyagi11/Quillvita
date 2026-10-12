@@ -1,4 +1,4 @@
-from app.schemas.customize import LLMCustomization
+from app.schemas.customize import LLMCustomization, SuggestedKeyword
 from app.schemas.resume import SectionName
 from app.services.customizer import apply_guardrails
 from app.services.truthfulness import unsupported_terms
@@ -47,6 +47,56 @@ def test_job_description_names_missing_from_resume_are_unsupported() -> None:
     terms = unsupported_terms(JOB_DESCRIPTION, _result().suggested_keywords, FULL_RESUME_TEXT)
     assert {"docker", "kubernetes", "postgresql"} <= terms
     assert not {"python", "fastapi", "senior", "backend"} & terms
+
+
+def test_ordinary_capitalized_words_are_not_treated_as_tools() -> None:
+    job = (
+        "We need a Technical Executive at RevX Hospitality to build automation."
+        "Key Responsibilities\n"
+        "Cloud Infrastructure: Deploy apps on AWS services such as EC2, S3, Lambda, and IAM.\n"
+        "Version Control: Use Git and GitHub/GitLab for collaboration.\n"
+        "Preferred Qualifications\n"
+        "B.Tech in Computer Science, Information Technology or equivalent.\n"
+        "What We Are Looking For a fast learner who is organized."
+    )
+    terms = unsupported_terms(job, [], "Built apps with Git and GitHub on AWS S3.")
+    assert {"ec2", "lambda", "iam", "gitlab", "revx"} <= terms
+    assert (
+        not {
+            "technical",
+            "executive",
+            "hospitality",
+            "automation",
+            "infrastructure",
+            "responsibilities",
+            "qualifications",
+            "information",
+            "technology",
+            "collaboration",
+            "we",
+            "are",
+            "looking",
+        }
+        & terms
+    )
+    assert not any("." in term and " " not in term and term != "b.tech" for term in terms)
+
+
+def test_versioned_and_equivalent_skills_count_as_present() -> None:
+    job = "Use HTML, CSS, SQL and REST APIs. Familiarity with NoSQL, Vue, or Angular."
+    resume = "HTML5, CSS3, MySQL, MongoDB. Engineered RESTful APIs."
+    assert unsupported_terms(job, [], resume) == {"vue", "angular"} | {
+        "hundreds",
+        "thousands",
+        "millions",
+        "billions",
+    }
+
+
+def test_names_inside_missing_keywords_are_unsupported() -> None:
+    keywords = [SuggestedKeyword(keyword="Testing tools (Cypress, Jest)", reason="")]
+    terms = unsupported_terms("Write tests.", keywords, "Built React apps.")
+    assert {"cypress", "jest", "testing tools"} <= terms
 
 
 def test_reverts_sections_that_borrow_tools_from_the_job_description() -> None:

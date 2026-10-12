@@ -8,6 +8,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
+from app.schemas.cover_letter import CoverLetterResponse
 from app.schemas.customize import CustomizeResponse
 from app.schemas.history import HistoryDetail, HistorySummary
 
@@ -30,6 +31,7 @@ create table if not exists resume_history (
 );
 create index if not exists resume_history_user_created_idx
     on resume_history (user_id, created_at desc);
+alter table resume_history add column if not exists cover_letter jsonb;
 """
 
 _SUMMARY_COLUMNS = "id, created_at, job_title, file_name, match_score, ats_score"
@@ -60,6 +62,10 @@ class HistoryRepository(Protocol):
     async def list_for_user(self, user_id: UUID, limit: int) -> list[HistorySummary]: ...
 
     async def get(self, user_id: UUID, entry_id: UUID) -> HistoryDetail | None: ...
+
+    async def save_cover_letter(
+        self, user_id: UUID, entry_id: UUID, letter: CoverLetterResponse
+    ) -> bool: ...
 
     async def get_file(self, user_id: UUID, entry_id: UUID) -> StoredFile | None: ...
 
@@ -132,7 +138,8 @@ class PostgresHistoryRepository:
         def run() -> HistoryDetail | None:
             with self._pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(
-                    f"select {_SUMMARY_COLUMNS}, job_description, result from resume_history "
+                    f"select {_SUMMARY_COLUMNS}, job_description, result, cover_letter "
+                    "from resume_history "
                     "where user_id = %s and id = %s",
                     (user_id, entry_id),
                 )
@@ -145,6 +152,21 @@ class PostgresHistoryRepository:
         return detail.model_copy(
             update={"result": detail.result.model_copy(update={"history_id": detail.id})}
         )
+
+    async def save_cover_letter(
+        self, user_id: UUID, entry_id: UUID, letter: CoverLetterResponse
+    ) -> bool:
+        params = (Jsonb(letter.model_dump(mode="json")), user_id, entry_id)
+
+        def run() -> bool:
+            with self._pool.connection() as conn:
+                cursor = conn.execute(
+                    "update resume_history set cover_letter = %s where user_id = %s and id = %s",
+                    params,
+                )
+                return cursor.rowcount > 0
+
+        return await self._run(run)
 
     async def get_file(self, user_id: UUID, entry_id: UUID) -> StoredFile | None:
         return await self._file_query(

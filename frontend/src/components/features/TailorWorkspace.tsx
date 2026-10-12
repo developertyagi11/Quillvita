@@ -12,6 +12,8 @@ import { useBackendWarmup } from "@/hooks/useBackendWarmup";
 import { useCustomizeForm } from "@/hooks/useCustomizeForm";
 import { useCustomizeResume } from "@/hooks/useCustomizeResume";
 import { useToast } from "@/hooks/useToast";
+import { mergeSkills } from "@/lib/confirmed-skills";
+import { SECTION_NAMES } from "@/schemas/resume";
 
 export function TailorWorkspace(): React.JSX.Element {
   useBackendWarmup();
@@ -19,6 +21,17 @@ export function TailorWorkspace(): React.JSX.Element {
   const form = useCustomizeForm((input) => void submit(input));
   const toast = useToast();
   const topRef = useRef<HTMLDivElement>(null);
+
+  function retailorWithSkills(skills: readonly string[]): void {
+    if (!lastInput) return;
+    void submit({
+      ...lastInput,
+      sections: SECTION_NAMES.filter(
+        (section) => section === "skills" || lastInput.sections.includes(section),
+      ),
+      confirmedSkills: mergeSkills(lastInput.confirmedSkills ?? [], skills),
+    });
+  }
 
   useEffect(() => {
     if (state.status === "success" || state.status === "loading") {
@@ -62,6 +75,8 @@ export function TailorWorkspace(): React.JSX.Element {
           result={state.data}
           jobDescription={lastInput?.jobDescription ?? ""}
           onEdit={reset}
+          historyId={state.data.history_id ?? null}
+          onAddSkills={retailorWithSkills}
         />
       ) : null}
 

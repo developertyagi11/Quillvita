@@ -1,3 +1,4 @@
+import json
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
@@ -127,6 +128,52 @@ def test_other_users_cannot_see_or_delete_an_entry() -> None:
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "not_found"
     assert len(repository.entries) == 1
+
+
+LETTER = {
+    "greeting": "Dear Hiring Manager,",
+    "paragraphs": ["First paragraph.", "Second paragraph."],
+    "closing": "Sincerely,",
+}
+
+
+def _write_letter(client: TestClient, history_id: object) -> None:
+    resume = client.get(f"/api/history/{history_id}").json()["result"]["tailored"]
+    response = client.post(
+        "/api/cover-letter",
+        json={"resume": resume, "job_description": JOB_DESCRIPTION, "history_id": history_id},
+    )
+    assert response.status_code == 200
+
+
+def test_cover_letter_is_saved_with_the_history_entry() -> None:
+    repository, storage = InMemoryHistoryRepository(), InMemoryStorage()
+    service = HistoryService(repository, storage)
+    llm = FakeLLM([customization_payload(), json.dumps(LETTER)])
+    client = build_client(llm, user=ALICE, history=service)
+    history_id = _customize(client)["history_id"]
+    assert client.get(f"/api/history/{history_id}").json()["cover_letter"] is None
+
+    _write_letter(client, history_id)
+    saved = client.get(f"/api/history/{history_id}").json()["cover_letter"]
+    assert saved["paragraphs"] == LETTER["paragraphs"]
+    assert saved["signature"] == "Jane Doe"
+
+
+def test_cover_letter_cannot_be_attached_to_another_users_entry() -> None:
+    repository, storage = InMemoryHistoryRepository(), InMemoryStorage()
+    service = HistoryService(repository, storage)
+    alice = build_client(FakeLLM([customization_payload()]), user=ALICE, history=service)
+    history_id = _customize(alice)["history_id"]
+
+    bob = build_client(FakeLLM([json.dumps(LETTER)]), user=BOB, history=service)
+    resume = alice.get(f"/api/history/{history_id}").json()["result"]["tailored"]
+    response = bob.post(
+        "/api/cover-letter",
+        json={"resume": resume, "job_description": JOB_DESCRIPTION, "history_id": history_id},
+    )
+    assert response.status_code == 200
+    assert not repository.cover_letters
 
 
 def test_job_title_uses_first_line_and_truncates() -> None:

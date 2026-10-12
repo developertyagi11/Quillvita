@@ -10,7 +10,7 @@ export const metadata: Metadata = publicPageMetadata({
   path: ROUTES.tailor,
   title: "Tailor your resume to a job description · Quillvita",
   description:
-    "Paste a job posting and upload your PDF or DOCX resume. Get a tailored version with a match score, ATS tips, missing keywords, a side-by-side diff and DOCX, PDF or TXT downloads. Free, no account needed.",
+    "Paste a job post and upload your resume. Get a tailored version with a match score, ATS tips, missing keywords and DOCX, PDF or TXT downloads. Free.",
 });
 
 export default function TailorPage(): React.JSX.Element {

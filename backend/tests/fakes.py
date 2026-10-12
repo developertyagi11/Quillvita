@@ -9,6 +9,7 @@ from pydantic import SecretStr
 from app.api.deps import get_history_service, get_llm_client, get_optional_user
 from app.core.config import Settings, get_settings
 from app.main import create_app
+from app.schemas.cover_letter import CoverLetterResponse
 from app.schemas.history import HistoryDetail, HistorySummary
 from app.services.auth import AuthUser
 from app.services.history.repository import NewHistoryEntry, StoredFile
@@ -66,6 +67,7 @@ class InMemoryStorage:
 class InMemoryHistoryRepository:
     def __init__(self, *, fail_insert: bool = False) -> None:
         self.entries: dict[UUID, tuple[NewHistoryEntry, datetime]] = {}
+        self.cover_letters: dict[UUID, CoverLetterResponse] = {}
         self._fail_insert = fail_insert
 
     async def insert(self, entry: NewHistoryEntry) -> None:
@@ -102,7 +104,16 @@ class InMemoryHistoryRepository:
             **self._summary(entry, created_at).model_dump(),
             job_description=entry.job_description,
             result=entry.result.model_copy(update={"history_id": entry.id}),
+            cover_letter=self.cover_letters.get(entry.id),
         )
+
+    async def save_cover_letter(
+        self, user_id: UUID, entry_id: UUID, letter: CoverLetterResponse
+    ) -> bool:
+        if self._owned(user_id, entry_id) is None:
+            return False
+        self.cover_letters[entry_id] = letter
+        return True
 
     async def get_file(self, user_id: UUID, entry_id: UUID) -> StoredFile | None:
         found = self._owned(user_id, entry_id)

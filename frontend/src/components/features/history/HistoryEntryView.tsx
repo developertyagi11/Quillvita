@@ -87,6 +87,8 @@ export function HistoryEntryView({ id }: HistoryEntryViewProps): React.JSX.Eleme
             result={state.data.result}
             jobDescription={state.data.job_description}
             onEdit={() => router.push(ROUTES.tailor)}
+            historyId={state.data.id}
+            savedCoverLetter={state.data.cover_letter ?? null}
           />
         </>
       ) : null}
